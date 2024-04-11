@@ -5,18 +5,22 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/winkor4/taktaev_project_sp56/internal/pkg/config"
+	"github.com/winkor4/taktaev_project_sp56/internal/storage"
 )
 
 type Config struct {
 	Cfg *config.Config
+	DB  *storage.DB
 }
 type Server struct {
 	cfg *config.Config
+	db  *storage.DB
 }
 
 func New(cfg Config) *Server {
 	return &Server{
 		cfg: cfg.Cfg,
+		db:  cfg.DB,
 	}
 }
 
