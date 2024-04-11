@@ -8,7 +8,7 @@ var migrations = []string{
 	);`,
 	`CREATE TABLE IF NOT EXISTS orders (
 		user_login text NOT NULL,
-		order_number TEXT NOT NULL,
+		order_number TEXT UNIQUE NOT NULL,
 		date TIMESTAMP NOT NULL,
 		status TEXT NOT NULL,
 		sum INTEGER NOT NULL
@@ -27,7 +27,8 @@ var migrations = []string{
 }
 
 var (
-	queryRegister = `INSERT INTO users 
+	queryRegister = `
+	INSERT INTO users 
 	(
 		login, 
 		password
@@ -38,9 +39,39 @@ var (
 		$2
 	)
 	ON CONFLICT (login) DO NOTHING;`
-	queryPassword = `SELECT
-	password
+
+	queryPassword = `
+	SELECT
+		password
 	FROM
-	users
-	WHERE login = $1`
+		users
+	WHERE 
+		login = $1`
+
+	queryInsertdOrder = `
+	INSERT INTO orders
+	(
+		user_login,
+		order_number,
+		date,
+		status,
+		sum
+	)
+	VALUES 
+	(
+		$1,
+		$2,
+		$3,
+		$4,
+		$5
+	)
+	ON CONFLICT (order_number) DO NOTHING;`
+
+	querySelectOrder = `
+	SELECT
+		user_login
+	FROM
+		orders
+	WHERE
+		order_number = $1`
 )

@@ -3,9 +3,13 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
+
+var ErrConflict = errors.New("conflict")
 
 type DB struct {
 	db   *sql.DB
@@ -86,15 +90,19 @@ func (db *DB) Register(login string, pass string) (bool, error) {
 
 func (db *DB) Truncate() error {
 
-	query := "DELETE FROM users"
+	querys := make([]string, 2)
+	querys[0] = "DELETE FROM users"
+	querys[1] = "DELETE FROM orders"
 
 	tx, err := db.db.BeginTx(context.Background(), nil)
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(query); err != nil {
-		tx.Rollback()
-		return err
+	for _, query := range querys {
+		if _, err := tx.Exec(query); err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -128,4 +136,49 @@ func (db *DB) Authorized(login string) bool {
 		return false
 	}
 	return out
+}
+
+func (db *DB) CheckOrder(login string, number string) error {
+
+	row := db.db.QueryRowContext(context.Background(), querySelectOrder, number)
+
+	var user string
+	err := row.Scan(&user)
+	if err != nil {
+		return err
+	}
+
+	switch {
+	case user == login:
+		return nil
+	default:
+		return ErrConflict
+	}
+}
+
+func (db *DB) UploadOrder(login string, number string) error {
+
+	tx, err := db.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	_, err = tx.ExecContext(ctx, queryInsertdOrder,
+		login,
+		number,
+		time.Now(),
+		"NEW",
+		0)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return err
 }

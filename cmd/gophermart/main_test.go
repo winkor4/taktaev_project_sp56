@@ -19,6 +19,7 @@ func TestApp(t *testing.T) {
 
 	srv := newTestSrv(t)
 	testAuth(t, srv)
+	testUploadOrder(t, srv)
 
 }
 
@@ -71,7 +72,7 @@ func testAuth(t *testing.T, srv *httptest.Server) {
 
 	var logPass []byte
 	logPass, err := json.Marshal(reqSchema{
-		Login:    "ivan",
+		Login:    "max",
 		Password: "1234",
 	})
 	require.NoError(t, err)
@@ -85,7 +86,7 @@ func testAuth(t *testing.T, srv *httptest.Server) {
 	reqData[1] = logPass
 
 	logPass, err = json.Marshal(reqSchema{
-		Login:    "ivan",
+		Login:    "max",
 		Password: "3215",
 	})
 	require.NoError(t, err)
@@ -141,6 +142,134 @@ func testAuth(t *testing.T, srv *httptest.Server) {
 			err = r.Body.Close()
 			require.NoError(t, err)
 
+		})
+	}
+
+}
+
+func testUploadOrder(t *testing.T, srv *httptest.Server) {
+
+	type (
+		want struct {
+			statusCode int
+		}
+		testData struct {
+			name     string
+			user     string
+			withAuth bool
+			body     []byte
+			want     want
+		}
+		regSchema struct {
+			Login    string `json:"login"`
+			Password string `json:"password"`
+		}
+	)
+
+	regData := make(map[string][]byte)
+
+	var logPass []byte
+	logPass, err := json.Marshal(regSchema{
+		Login:    "ivan",
+		Password: "1234",
+	})
+	require.NoError(t, err)
+	regData["ivan"] = logPass
+
+	logPass, err = json.Marshal(regSchema{
+		Login:    "alex",
+		Password: "1234",
+	})
+	require.NoError(t, err)
+	regData["alex"] = logPass
+
+	testTable := []testData{
+		{
+			name:     "POST /api/user/orders",
+			user:     "ivan",
+			withAuth: true,
+			body:     []byte("1234567890"),
+			want: want{
+				statusCode: http.StatusAccepted,
+			},
+		},
+		{
+			name:     "POST /api/user/orders повторный",
+			user:     "ivan",
+			withAuth: true,
+			body:     []byte("1234567890"),
+			want: want{
+				statusCode: http.StatusOK,
+			},
+		},
+		{
+			name:     "POST /api/user/orders без авторизации",
+			user:     "ivan",
+			withAuth: false,
+			body:     []byte("1234567890"),
+			want: want{
+				statusCode: http.StatusUnauthorized,
+			},
+		},
+		{
+			name:     "POST /api/user/orders чужой заказ",
+			user:     "alex",
+			withAuth: true,
+			body:     []byte("1234567890"),
+			want: want{
+				statusCode: http.StatusConflict,
+			},
+		},
+		{
+			name:     "POST /api/user/orders неверный формат заказа",
+			user:     "alex",
+			withAuth: true,
+			body:     []byte("1a34567890"),
+			want: want{
+				statusCode: http.StatusUnprocessableEntity,
+			},
+		},
+	}
+
+	authCookie := make(map[string][]*http.Cookie)
+
+	for user, logPass := range regData {
+		body := bytes.NewReader(logPass)
+		request, err := http.NewRequest(http.MethodPost, srv.URL+"/api/user/register", body)
+		require.NoError(t, err)
+		request.Header.Set("Content-Type", "application/json")
+
+		client := srv.Client()
+		r, err := client.Do(request)
+		require.NoError(t, err)
+
+		authCookie[user] = r.Cookies()
+
+		err = r.Body.Close()
+		require.NoError(t, err)
+	}
+
+	for _, testData := range testTable {
+		t.Run(testData.name, func(t *testing.T) {
+			body := bytes.NewReader(testData.body)
+			request, err := http.NewRequest(http.MethodPost, srv.URL+"/api/user/orders", body)
+			require.NoError(t, err)
+			request.Header.Set("Content-Type", "text/plain")
+
+			if testData.withAuth {
+				for _, c := range authCookie[testData.user] {
+					request.AddCookie(c)
+				}
+			}
+
+			client := srv.Client()
+			r, err := client.Do(request)
+			require.NoError(t, err)
+
+			assert.Equal(t, testData.want.statusCode, r.StatusCode)
+
+			err = r.Body.Close()
+			require.NoError(t, err)
 		})
 	}
 

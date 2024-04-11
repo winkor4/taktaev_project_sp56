@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/winkor4/taktaev_project_sp56/internal/pkg/config"
 	"github.com/winkor4/taktaev_project_sp56/internal/storage"
 )
@@ -13,9 +14,21 @@ type Config struct {
 	Cfg *config.Config
 	DB  *storage.DB
 }
+
+type session struct {
+	user string
+}
 type Server struct {
-	cfg *config.Config
-	db  *storage.DB
+	cfg     *config.Config
+	db      *storage.DB
+	session session
+}
+
+var jwtKey = []byte("secret_key")
+
+type Claims struct {
+	Login string `json:"login"`
+	jwt.RegisteredClaims
 }
 
 func New(cfg Config) *Server {
@@ -34,6 +47,16 @@ func SrvRouter(s *Server) *chi.Mux {
 
 	r.Post("/api/user/register", checkContentTypeMiddleware(register(s), "application/json"))
 	r.Post("/api/user/login", checkContentTypeMiddleware(login(s), "application/json"))
+	r.Mount("/api/user", ordersRouter(s))
+
+	return r
+}
+
+func ordersRouter(s *Server) *chi.Mux {
+	r := chi.NewRouter()
+	r.Use(authorizationMiddleware(s))
+
+	r.Post("/orders", checkContentTypeMiddleware(uploadOrder(s), "text/plain"))
 
 	return r
 }
@@ -52,5 +75,51 @@ func checkContentTypeMiddleware(h http.HandlerFunc, exContentType string) http.H
 			return
 		}
 		h(w, r)
+	}
+}
+
+func authorizationMiddleware(s *Server) func(h http.Handler) http.Handler {
+	return func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+			c, err := r.Cookie("token")
+			if err != nil {
+				if err == http.ErrNoCookie {
+					http.Error(w, "Unauthorized", http.StatusUnauthorized)
+					return
+				}
+				http.Error(w, "can't read cookie", http.StatusBadRequest)
+				return
+			}
+
+			tokenStr := c.Value
+			claims := new(Claims)
+
+			tkn, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (any, error) {
+				return jwtKey, nil
+			})
+
+			if err != nil {
+				if err == jwt.ErrSignatureInvalid {
+					http.Error(w, "Unauthorized", http.StatusUnauthorized)
+					return
+				}
+				http.Error(w, "can't parse cookie", http.StatusBadRequest)
+				return
+			}
+			if !tkn.Valid {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+
+			if !s.db.Authorized(claims.Login) {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+
+			s.session.user = claims.Login
+
+			h.ServeHTTP(w, r)
+		})
 	}
 }

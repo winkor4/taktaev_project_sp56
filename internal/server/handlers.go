@@ -1,19 +1,16 @@
 package server
 
 import (
+	"database/sql"
 	"encoding/json"
+	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/winkor4/taktaev_project_sp56/internal/storage"
 )
-
-var jwtKey = []byte("secret_key")
-
-type Claims struct {
-	Login string `json:"login"`
-	jwt.RegisteredClaims
-}
 
 func register(s *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -114,4 +111,55 @@ func authToken(login string) (*http.Cookie, error) {
 		Value:   tokenStr,
 		Expires: expirationTime,
 	}, nil
+}
+
+func uploadOrder(s *Server) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		data, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Can't read body", http.StatusBadRequest)
+			return
+		}
+
+		orderNumber := string(data)
+		if orderNumber == "" {
+			http.Error(w, "empty order number", http.StatusBadRequest)
+			return
+		}
+
+		if badNumberFormat(orderNumber) {
+			http.Error(w, "bad format order number", http.StatusUnprocessableEntity)
+			return
+		}
+
+		err = s.db.CheckOrder(s.session.user, orderNumber)
+		if err == nil {
+			w.WriteHeader(http.StatusOK)
+			return
+		} else if err != sql.ErrNoRows {
+			if err == storage.ErrConflict {
+				w.WriteHeader(http.StatusConflict)
+				return
+			}
+			http.Error(w, "can't check order number", http.StatusInternalServerError)
+			return
+		}
+
+		err = s.db.UploadOrder(s.session.user, orderNumber)
+		if err != nil {
+			http.Error(w, "can't write order number", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusAccepted)
+
+	}
+}
+
+func badNumberFormat(str string) bool {
+	if _, err := strconv.Atoi(str); err != nil {
+		return true
+	}
+	return false
 }
