@@ -25,3 +25,22 @@ var migrations = []string{
 		date TIMESTAMP NOT NULL
 	);`,
 }
+
+var (
+	queryRegister = `INSERT INTO users 
+	(
+		login, 
+		password
+	)
+	VALUES 
+	(
+		$1, 
+		$2
+	)
+	ON CONFLICT (login) DO NOTHING;`
+	queryPassword = `SELECT
+	password
+	FROM
+	users
+	WHERE login = $1`
+)

@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/winkor4/taktaev_project_sp56/internal/pkg/config"
@@ -31,5 +32,25 @@ func (s *Server) Run() error {
 func SrvRouter(s *Server) *chi.Mux {
 	r := chi.NewRouter()
 
+	r.Post("/api/user/register", checkContentTypeMiddleware(register(s), "application/json"))
+	r.Post("/api/user/login", checkContentTypeMiddleware(login(s), "application/json"))
+
 	return r
+}
+
+func checkContentTypeMiddleware(h http.HandlerFunc, exContentType string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		contentType := r.Header.Get("Content-Type")
+		if strings.Contains(contentType, "application/x-gzip") {
+			r.Header.Set("Content-Type", exContentType)
+			h(w, r)
+			return
+		}
+
+		if !strings.Contains(contentType, exContentType) {
+			http.Error(w, "unexpected Content-Type", http.StatusBadRequest)
+			return
+		}
+		h(w, r)
+	}
 }
