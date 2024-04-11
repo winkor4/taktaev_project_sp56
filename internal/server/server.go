@@ -57,6 +57,7 @@ func ordersRouter(s *Server) *chi.Mux {
 	r.Use(authorizationMiddleware(s))
 
 	r.Post("/orders", checkContentTypeMiddleware(uploadOrder(s), "text/plain"))
+	r.Get("/orders", getOrders(s))
 
 	return r
 }

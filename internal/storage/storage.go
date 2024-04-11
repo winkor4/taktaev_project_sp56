@@ -7,6 +7,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/winkor4/taktaev_project_sp56/internal/model"
 )
 
 var ErrConflict = errors.New("conflict")
@@ -181,4 +182,29 @@ func (db *DB) UploadOrder(login string, number string) error {
 	}
 
 	return err
+}
+
+func (db *DB) GetOrders(login string) ([]model.OrderSchema, error) {
+	rows, err := db.db.QueryContext(context.Background(), querySelectOrders, login)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	orders := make([]model.OrderSchema, 0)
+	for rows.Next() {
+		var order model.OrderSchema
+		err := rows.Scan(&order.Number, &order.Date, &order.Status, &order.Accrual)
+		if err != nil {
+			return nil, err
+		}
+		order.UploadedAt = order.Date.Format(time.RFC3339)
+		orders = append(orders, order)
+	}
+
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	return orders, nil
 }

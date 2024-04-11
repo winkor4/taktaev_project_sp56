@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/winkor4/taktaev_project_sp56/internal/model"
 	"github.com/winkor4/taktaev_project_sp56/internal/storage"
 )
 
 func register(s *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		var schema registerSchema
+		var schema model.RegisterSchema
 		err := json.NewDecoder(r.Body).Decode(&schema)
 		if err != nil {
 			http.Error(w, "Can't read body", http.StatusBadRequest)
@@ -54,7 +55,7 @@ func register(s *Server) http.HandlerFunc {
 func login(s *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		var schema registerSchema
+		var schema model.RegisterSchema
 		err := json.NewDecoder(r.Body).Decode(&schema)
 		if err != nil {
 			http.Error(w, "Can't read body", http.StatusBadRequest)
@@ -162,4 +163,25 @@ func badNumberFormat(str string) bool {
 		return true
 	}
 	return false
+}
+
+func getOrders(s *Server) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		orders, err := s.db.GetOrders(s.session.user)
+		if err != nil {
+			http.Error(w, "can't get user's orders", http.StatusInternalServerError)
+			return
+		}
+		if len(orders) == 0 {
+			http.Error(w, "no content", http.StatusNoContent)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(orders); err != nil {
+			http.Error(w, "Can't encode response", http.StatusInternalServerError)
+			return
+		}
+	}
 }

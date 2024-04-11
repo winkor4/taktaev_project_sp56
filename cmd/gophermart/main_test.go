@@ -3,10 +3,13 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/winkor4/taktaev_project_sp56/internal/model"
 	"github.com/winkor4/taktaev_project_sp56/internal/pkg/config"
 	"github.com/winkor4/taktaev_project_sp56/internal/server"
 	"github.com/winkor4/taktaev_project_sp56/internal/storage"
@@ -20,6 +23,7 @@ func TestApp(t *testing.T) {
 	srv := newTestSrv(t)
 	testAuth(t, srv)
 	testUploadOrder(t, srv)
+	testGetOrders(t, srv)
 
 }
 
@@ -183,12 +187,48 @@ func testUploadOrder(t *testing.T, srv *httptest.Server) {
 	require.NoError(t, err)
 	regData["alex"] = logPass
 
+	authCookie := make(map[string][]*http.Cookie)
+
+	for user, logPass := range regData {
+		body := bytes.NewReader(logPass)
+		request, err := http.NewRequest(http.MethodPost, srv.URL+"/api/user/register", body)
+		require.NoError(t, err)
+		request.Header.Set("Content-Type", "application/json")
+
+		client := srv.Client()
+		r, err := client.Do(request)
+		require.NoError(t, err)
+
+		authCookie[user] = r.Cookies()
+
+		err = r.Body.Close()
+		require.NoError(t, err)
+	}
+
 	testTable := []testData{
 		{
 			name:     "POST /api/user/orders",
 			user:     "ivan",
 			withAuth: true,
 			body:     []byte("1234567890"),
+			want: want{
+				statusCode: http.StatusAccepted,
+			},
+		},
+		{
+			name:     "POST /api/user/orders",
+			user:     "ivan",
+			withAuth: true,
+			body:     []byte("1234567891"),
+			want: want{
+				statusCode: http.StatusAccepted,
+			},
+		},
+		{
+			name:     "POST /api/user/orders",
+			user:     "ivan",
+			withAuth: true,
+			body:     []byte("1234567892"),
 			want: want{
 				statusCode: http.StatusAccepted,
 			},
@@ -231,24 +271,6 @@ func testUploadOrder(t *testing.T, srv *httptest.Server) {
 		},
 	}
 
-	authCookie := make(map[string][]*http.Cookie)
-
-	for user, logPass := range regData {
-		body := bytes.NewReader(logPass)
-		request, err := http.NewRequest(http.MethodPost, srv.URL+"/api/user/register", body)
-		require.NoError(t, err)
-		request.Header.Set("Content-Type", "application/json")
-
-		client := srv.Client()
-		r, err := client.Do(request)
-		require.NoError(t, err)
-
-		authCookie[user] = r.Cookies()
-
-		err = r.Body.Close()
-		require.NoError(t, err)
-	}
-
 	for _, testData := range testTable {
 		t.Run(testData.name, func(t *testing.T) {
 			body := bytes.NewReader(testData.body)
@@ -270,6 +292,136 @@ func testUploadOrder(t *testing.T, srv *httptest.Server) {
 
 			err = r.Body.Close()
 			require.NoError(t, err)
+
+			time.Sleep(time.Second)
+		})
+	}
+}
+
+func testGetOrders(t *testing.T, srv *httptest.Server) {
+
+	type (
+		want struct {
+			statusCode int
+			body       []model.OrderSchema
+		}
+		testData struct {
+			name          string
+			user          string
+			checkResponse bool
+			want          want
+		}
+		regSchema struct {
+			Login    string `json:"login"`
+			Password string `json:"password"`
+		}
+	)
+
+	regData := make(map[string][]byte)
+
+	var logPass []byte
+	logPass, err := json.Marshal(regSchema{
+		Login:    "ivan",
+		Password: "1234",
+	})
+	require.NoError(t, err)
+	regData["ivan"] = logPass
+
+	logPass, err = json.Marshal(regSchema{
+		Login:    "alex",
+		Password: "1234",
+	})
+	require.NoError(t, err)
+	regData["alex"] = logPass
+
+	authCookie := make(map[string][]*http.Cookie)
+
+	for user, logPass := range regData {
+		body := bytes.NewReader(logPass)
+		request, err := http.NewRequest(http.MethodPost, srv.URL+"/api/user/login", body)
+		require.NoError(t, err)
+		request.Header.Set("Content-Type", "application/json")
+
+		client := srv.Client()
+		r, err := client.Do(request)
+		require.NoError(t, err)
+
+		authCookie[user] = r.Cookies()
+
+		err = r.Body.Close()
+		require.NoError(t, err)
+	}
+
+	testTable := []testData{
+		{
+			name:          "GET /api/user/orders",
+			user:          "ivan",
+			checkResponse: true,
+			want: want{
+				statusCode: http.StatusOK,
+				body: []model.OrderSchema{
+					{
+						Number:  "1234567890",
+						Status:  "NEW",
+						Accrual: 0,
+					},
+					{
+						Number:  "1234567891",
+						Status:  "NEW",
+						Accrual: 0,
+					},
+					{
+						Number:  "1234567892",
+						Status:  "NEW",
+						Accrual: 0,
+					},
+				},
+			},
+		},
+		{
+			name:          "GET /api/user/orders без данных",
+			user:          "alex",
+			checkResponse: false,
+			want: want{
+				statusCode: http.StatusNoContent,
+			},
+		},
+	}
+
+	for _, testData := range testTable {
+		t.Run(testData.name, func(t *testing.T) {
+			request, err := http.NewRequest(http.MethodGet, srv.URL+"/api/user/orders", nil)
+			require.NoError(t, err)
+
+			for _, c := range authCookie[testData.user] {
+				request.AddCookie(c)
+			}
+
+			client := srv.Client()
+			r, err := client.Do(request)
+			require.NoError(t, err)
+
+			assert.Equal(t, testData.want.statusCode, r.StatusCode)
+
+			rBody, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			err = r.Body.Close()
+			require.NoError(t, err)
+
+			if !testData.checkResponse {
+				return
+			}
+
+			var orders []model.OrderSchema
+			err = json.Unmarshal(rBody, &orders)
+			require.NoError(t, err)
+
+			for i, order := range orders {
+				assert.Equal(t, testData.want.body[i].Number, order.Number)
+				assert.Equal(t, testData.want.body[i].Status, order.Status)
+				assert.Equal(t, testData.want.body[i].Accrual, order.Accrual)
+			}
+
 		})
 	}
 

@@ -74,4 +74,17 @@ var (
 		orders
 	WHERE
 		order_number = $1`
+
+	querySelectOrders = `
+	SELECT
+		order_number,
+		date,
+		status,
+		sum
+	FROM
+		orders
+	WHERE
+		user_login = $1
+	ORDER BY
+		date`
 )
