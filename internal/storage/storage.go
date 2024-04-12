@@ -208,3 +208,55 @@ func (db *DB) GetOrders(login string) ([]model.OrderSchema, error) {
 
 	return orders, nil
 }
+
+func (db *DB) OrdersToRefresh() ([]string, error) {
+	rows, err := db.db.QueryContext(context.Background(), queryOrdersToRefresh)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	orders := make([]string, 0)
+	for rows.Next() {
+		var order string
+		err := rows.Scan(&order)
+		if err != nil {
+			return nil, err
+		}
+		orders = append(orders, order)
+	}
+
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	return orders, nil
+}
+
+func (db *DB) UpdateOrders(accrualList []model.AccrualSchema) error {
+
+	tx, err := db.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	for _, data := range accrualList {
+		_, err = tx.ExecContext(ctx, queryUpdateOrder,
+			data.Status,
+			data.Accrual,
+			data.Order)
+
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return nil
+}

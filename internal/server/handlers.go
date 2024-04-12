@@ -185,3 +185,54 @@ func getOrders(s *Server) http.HandlerFunc {
 		}
 	}
 }
+
+func getOrdersAccrual(s *Server, orders []string) error {
+
+	basePath := s.cfg.AccuralSystemAddress + "/api/orders/"
+
+	client := http.Client{}
+
+	accrualList := make([]model.AccrualSchema, 0)
+
+	for _, order := range orders {
+		request, err := http.NewRequest(http.MethodGet, basePath+order, nil)
+		if err != nil {
+			return err
+		}
+
+		r, err := client.Do(request)
+		if err != nil {
+			return err
+		}
+		rBody, err := io.ReadAll(r.Body)
+		if err != nil {
+			return err
+		}
+		err = r.Body.Close()
+		if err != nil {
+			return err
+		}
+
+		if r.StatusCode != http.StatusOK {
+			continue
+		}
+
+		var accrualData model.AccrualSchema
+		err = json.Unmarshal(rBody, &accrualData)
+		if err != nil {
+			return err
+		}
+		accrualList = append(accrualList, accrualData)
+	}
+
+	if len(accrualList) == 0 {
+		return nil
+	}
+
+	err := s.db.UpdateOrders(accrualList)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

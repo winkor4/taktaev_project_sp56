@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
@@ -122,5 +123,28 @@ func authorizationMiddleware(s *Server) func(h http.Handler) http.Handler {
 
 			h.ServeHTTP(w, r)
 		})
+	}
+}
+
+func Workers(s *Server) {
+	go refreshOrders(s)
+}
+
+func refreshOrders(s *Server) {
+	if s.cfg.AccuralSystemAddress == "" {
+		return
+	}
+	for {
+		orders, err := s.db.OrdersToRefresh()
+		if err != nil {
+			break
+		}
+		if len(orders) > 0 {
+			err := getOrdersAccrual(s, orders)
+			if err != nil {
+				break
+			}
+		}
+		time.Sleep(time.Second * 2)
 	}
 }

@@ -87,4 +87,20 @@ var (
 		user_login = $1
 	ORDER BY
 		date`
+
+	queryOrdersToRefresh = `
+	SELECT
+		order_number
+	FROM
+		orders
+	WHERE
+		NOT status IN ('INVALID', 'PROCESSED')`
+
+	queryUpdateOrder = `
+	UPDATE orders
+	SET
+		status = $1,
+		sum = $2
+	WHERE
+		order_number = $3`
 )

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/winkor4/taktaev_project_sp56/internal/mock"
 	"github.com/winkor4/taktaev_project_sp56/internal/model"
 	"github.com/winkor4/taktaev_project_sp56/internal/pkg/config"
 	"github.com/winkor4/taktaev_project_sp56/internal/server"
@@ -48,6 +49,11 @@ func newTestSrv(t *testing.T) *httptest.Server {
 		Cfg: cfg,
 		DB:  db,
 	})
+
+	cfg.AccuralSystemAddress = "http://localhost:8081"
+	go mock.Run(cfg)
+
+	server.Workers(srv)
 
 	return httptest.NewServer(server.SrvRouter(srv))
 }
@@ -148,7 +154,6 @@ func testAuth(t *testing.T, srv *httptest.Server) {
 
 		})
 	}
-
 }
 
 func testUploadOrder(t *testing.T, srv *httptest.Server) {
@@ -296,6 +301,7 @@ func testUploadOrder(t *testing.T, srv *httptest.Server) {
 			time.Sleep(time.Second)
 		})
 	}
+	time.Sleep(time.Second)
 }
 
 func testGetOrders(t *testing.T, srv *httptest.Server) {

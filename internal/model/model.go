@@ -14,3 +14,9 @@ type OrderSchema struct {
 	UploadedAt string `json:"uploaded_at"`
 	Date       time.Time
 }
+
+type AccrualSchema struct {
+	Order   string `json:"order"`
+	Status  string `json:"status"`
+	Accrual int    `json:"accrual"`
+}
