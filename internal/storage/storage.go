@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -91,9 +93,11 @@ func (db *DB) Register(login string, pass string) (bool, error) {
 
 func (db *DB) Truncate() error {
 
-	querys := make([]string, 2)
+	querys := make([]string, 4)
 	querys[0] = "DELETE FROM users"
 	querys[1] = "DELETE FROM orders"
+	querys[2] = "DELETE FROM bonuses"
+	querys[3] = "DELETE FROM spending"
 
 	tx, err := db.db.BeginTx(context.Background(), nil)
 	if err != nil {
@@ -165,7 +169,7 @@ func (db *DB) UploadOrder(login string, number string) error {
 	}
 
 	ctx := context.Background()
-	_, err = tx.ExecContext(ctx, queryInsertdOrder,
+	_, err = tx.ExecContext(ctx, queryInsertOrder,
 		login,
 		number,
 		time.Now(),
@@ -259,4 +263,98 @@ func (db *DB) UpdateOrders(accrualList []model.AccrualSchema) error {
 	}
 
 	return nil
+}
+
+func (db *DB) SetBonuses(accrualList []model.AccrualSchema) error {
+
+	orders, err := findLogins(db, accrualList)
+	if err != nil {
+		return err
+	}
+
+	tx, err := db.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	for _, data := range orders {
+		_, err = tx.ExecContext(ctx, queryInsertBonuses,
+			data.user,
+			data.Accrual,
+			0)
+
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return nil
+}
+
+type accrualLogin struct {
+	user string
+	model.AccrualSchema
+}
+
+func findLogins(db *DB, accrualList []model.AccrualSchema) ([]accrualLogin, error) {
+
+	var param string
+	for i, data := range accrualList {
+		param = param + fmt.Sprintf("'%s'", data.Order)
+		if i < len(accrualList)-1 {
+			param = param + ", "
+		}
+	}
+	query := strings.ReplaceAll(queryLogins, "$1", param)
+
+	rows, err := db.db.QueryContext(context.Background(), query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	orders := make([]accrualLogin, 0)
+	for rows.Next() {
+		var order accrualLogin
+		err := rows.Scan(&order.user, &order.Order)
+		if err != nil {
+			return nil, err
+		}
+		orders = append(orders, order)
+	}
+
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	for i, order := range orders {
+		for _, data := range accrualList {
+			if data.Order == order.Order {
+				orders[i].Accrual = data.Accrual
+				orders[i].Status = data.Status
+				break
+			}
+		}
+	}
+
+	return orders, nil
+}
+
+func (db *DB) GetBalance(login string) (model.BalaneSchema, error) {
+	row := db.db.QueryRowContext(context.Background(), queryBalance, login)
+
+	var balance model.BalaneSchema
+	err := row.Scan(&balance.Current, &balance.WithDrawn)
+	if err != nil {
+		return balance, err
+	}
+
+	return balance, nil
 }

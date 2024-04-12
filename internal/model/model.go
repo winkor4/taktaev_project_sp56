@@ -20,3 +20,8 @@ type AccrualSchema struct {
 	Status  string `json:"status"`
 	Accrual int    `json:"accrual"`
 }
+
+type BalaneSchema struct {
+	Current   int `json:"current"`
+	WithDrawn int `json:"withdrawn"`
+}

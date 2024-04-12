@@ -59,6 +59,7 @@ func ordersRouter(s *Server) *chi.Mux {
 
 	r.Post("/orders", checkContentTypeMiddleware(uploadOrder(s), "text/plain"))
 	r.Get("/orders", getOrders(s))
+	r.Get("/balance", getBalance(s))
 
 	return r
 }

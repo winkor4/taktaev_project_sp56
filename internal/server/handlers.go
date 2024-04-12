@@ -233,6 +233,29 @@ func getOrdersAccrual(s *Server, orders []string) error {
 	if err != nil {
 		return err
 	}
+	err = s.db.SetBonuses(accrualList)
+	if err != nil {
+		return err
+	}
 
 	return nil
+}
+
+func getBalance(s *Server) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		balance, err := s.db.GetBalance(s.session.user)
+		if err != nil && err != sql.ErrNoRows {
+			http.Error(w, "can't get balance", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(balance); err != nil {
+			http.Error(w, "Can't encode response", http.StatusInternalServerError)
+			return
+		}
+
+	}
 }

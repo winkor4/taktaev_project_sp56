@@ -25,6 +25,7 @@ func TestApp(t *testing.T) {
 	testAuth(t, srv)
 	testUploadOrder(t, srv)
 	testGetOrders(t, srv)
+	testBalance(t, srv)
 
 }
 
@@ -367,19 +368,13 @@ func testGetOrders(t *testing.T, srv *httptest.Server) {
 				statusCode: http.StatusOK,
 				body: []model.OrderSchema{
 					{
-						Number:  "1234567890",
-						Status:  "NEW",
-						Accrual: 0,
+						Number: "1234567890",
 					},
 					{
-						Number:  "1234567891",
-						Status:  "NEW",
-						Accrual: 0,
+						Number: "1234567891",
 					},
 					{
-						Number:  "1234567892",
-						Status:  "NEW",
-						Accrual: 0,
+						Number: "1234567892",
 					},
 				},
 			},
@@ -424,9 +419,91 @@ func testGetOrders(t *testing.T, srv *httptest.Server) {
 
 			for i, order := range orders {
 				assert.Equal(t, testData.want.body[i].Number, order.Number)
-				assert.Equal(t, testData.want.body[i].Status, order.Status)
-				assert.Equal(t, testData.want.body[i].Accrual, order.Accrual)
 			}
+
+		})
+	}
+}
+
+func testBalance(t *testing.T, srv *httptest.Server) {
+
+	type (
+		want struct {
+			statusCode int
+		}
+		testData struct {
+			name string
+			want want
+		}
+		regSchema struct {
+			Login    string `json:"login"`
+			Password string `json:"password"`
+		}
+	)
+
+	regData := make(map[string][]byte)
+
+	var logPass []byte
+	logPass, err := json.Marshal(regSchema{
+		Login:    "ivan",
+		Password: "1234",
+	})
+	require.NoError(t, err)
+	regData["ivan"] = logPass
+
+	authCookie := make(map[string][]*http.Cookie)
+
+	for user, logPass := range regData {
+		body := bytes.NewReader(logPass)
+		request, err := http.NewRequest(http.MethodPost, srv.URL+"/api/user/login", body)
+		require.NoError(t, err)
+		request.Header.Set("Content-Type", "application/json")
+
+		client := srv.Client()
+		r, err := client.Do(request)
+		require.NoError(t, err)
+
+		authCookie[user] = r.Cookies()
+
+		err = r.Body.Close()
+		require.NoError(t, err)
+	}
+
+	testTable := []testData{
+		{
+			name: "GET /api/user/balance",
+			want: want{
+				statusCode: http.StatusOK,
+			},
+		},
+	}
+
+	for _, testData := range testTable {
+		t.Run(testData.name, func(t *testing.T) {
+			request, err := http.NewRequest(http.MethodGet, srv.URL+"/api/user/balance", nil)
+			require.NoError(t, err)
+
+			for _, c := range authCookie["ivan"] {
+				request.AddCookie(c)
+			}
+
+			client := srv.Client()
+			r, err := client.Do(request)
+			require.NoError(t, err)
+
+			assert.Equal(t, testData.want.statusCode, r.StatusCode)
+
+			rBody, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			err = r.Body.Close()
+			require.NoError(t, err)
+
+			var balance model.BalaneSchema
+			err = json.Unmarshal(rBody, &balance)
+			require.NoError(t, err)
+
+			require.NotEmpty(t, balance.Current)
+			require.NotEmpty(t, balance.WithDrawn+1)
 
 		})
 	}

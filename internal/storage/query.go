@@ -48,7 +48,7 @@ var (
 	WHERE 
 		login = $1`
 
-	queryInsertdOrder = `
+	queryInsertOrder = `
 	INSERT INTO orders
 	(
 		user_login,
@@ -103,4 +103,36 @@ var (
 		sum = $2
 	WHERE
 		order_number = $3`
+
+	queryLogins = `
+	SELECT
+		user_login,
+		order_number
+	FROM
+		orders
+	WHERE
+		order_number IN ($1)`
+
+	queryInsertBonuses = `
+	INSERT INTO bonuses
+	(
+		user_login,
+		sum,
+		out
+	)
+	VALUES
+	(
+		$1,
+		$2,
+		$3
+	)`
+
+	queryBalance = `
+	SELECT
+		SUM(sum),
+		SUM(out)
+	FROM
+		bonuses
+	WHERE
+		user_login = $1`
 )
