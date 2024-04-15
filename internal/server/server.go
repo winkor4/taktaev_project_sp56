@@ -1,7 +1,6 @@
 package server
 
 import (
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -42,7 +41,6 @@ func New(cfg Config) *Server {
 
 func (s *Server) Run() error {
 	go Workers(s)
-	log.Println("start server " + s.cfg.RunAddress)
 	return http.ListenAndServe(s.cfg.RunAddress, SrvRouter(s))
 }
 

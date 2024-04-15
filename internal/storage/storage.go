@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -189,11 +191,15 @@ func (db *DB) UploadOrder(login string, number string) error {
 }
 
 func (db *DB) GetOrders(login string, ctx context.Context) ([]model.OrderSchema, error) {
+	log.Println("GetOrders - start " + login)
+
 	rows, err := db.db.QueryContext(ctx, querySelectOrders, login)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+
+	log.Println("GetOrders - query OK " + login)
 
 	orders := make([]model.OrderSchema, 0)
 	for rows.Next() {
@@ -204,6 +210,7 @@ func (db *DB) GetOrders(login string, ctx context.Context) ([]model.OrderSchema,
 		}
 		order.UploadedAt = order.Date.Format(time.RFC3339)
 		orders = append(orders, order)
+		log.Println("GetOrders - len(orders) = " + strconv.Itoa(len(orders)) + " - " + login)
 	}
 
 	if rows.Err() != nil {
