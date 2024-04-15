@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -169,6 +170,7 @@ func getOrders(s *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		orders, err := s.db.GetOrders(s.session.user, r.Context())
+		log.Println("GetOrders - end " + s.session.user)
 		if err != nil {
 			http.Error(w, "can't get user's orders", http.StatusInternalServerError)
 			return
