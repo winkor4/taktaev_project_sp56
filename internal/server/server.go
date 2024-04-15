@@ -138,11 +138,14 @@ func refreshOrders(s *Server) {
 	for {
 		orders, err := s.db.OrdersToRefresh()
 		if err != nil {
+			log.Println(err.Error())
 			break
 		}
 		if len(orders) > 0 {
+			log.Println("start accrual")
 			err := getOrdersAccrual(s, orders)
 			if err != nil {
+				log.Println(err.Error())
 				break
 			}
 		}
