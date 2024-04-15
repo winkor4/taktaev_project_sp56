@@ -204,11 +204,11 @@ func (db *DB) GetOrders(login string, ctx context.Context) ([]model.OrderSchema,
 	orders := make([]model.OrderSchema, 0)
 	for rows.Next() {
 		var order model.OrderSchema
-		err := rows.Scan(&order.Number, &order.UploadedAt, &order.Status, &order.Accrual)
+		err := rows.Scan(&order.Number, &order.Date, &order.Status, &order.Accrual)
 		if err != nil {
 			return nil, err
 		}
-		// order.UploadedAt = order.Date.Format(time.RFC3339)
+		order.UploadedAt = order.Date.Format(time.RFC3339)
 		orders = append(orders, order)
 		log.Println("GetOrders - len(orders) = " + strconv.Itoa(len(orders)) + " - " + login)
 	}

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -133,9 +134,7 @@ func Workers(s *Server) {
 }
 
 func refreshOrders(s *Server) {
-	if s.cfg.AccuralSystemAddress == "" {
-		return
-	}
+	log.Println("start refreshOrders with dsn: " + s.cfg.AccuralSystemAddress)
 	for {
 		orders, err := s.db.OrdersToRefresh()
 		if err != nil {

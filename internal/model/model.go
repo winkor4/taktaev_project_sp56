@@ -11,7 +11,8 @@ type OrderSchema struct {
 	Number     string    `json:"number"`
 	Status     string    `json:"status"`
 	Accrual    int       `json:"accrual"`
-	UploadedAt time.Time `json:"uploaded_at"`
+	UploadedAt string    `json:"uploaded_at"`
+	Date       time.Time `json:"-"`
 }
 
 type AccrualSchema struct {
