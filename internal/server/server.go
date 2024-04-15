@@ -40,6 +40,7 @@ func New(cfg Config) *Server {
 }
 
 func (s *Server) Run() error {
+	go Workers(s)
 	return http.ListenAndServe(s.cfg.RunAddress, SrvRouter(s))
 }
 

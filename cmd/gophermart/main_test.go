@@ -507,5 +507,4 @@ func testBalance(t *testing.T, srv *httptest.Server) {
 
 		})
 	}
-
 }
