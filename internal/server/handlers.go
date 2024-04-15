@@ -181,7 +181,6 @@ func getOrders(s *Server) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
 		if err := json.NewEncoder(w).Encode(orders); err != nil {
 			http.Error(w, "Can't encode response", http.StatusInternalServerError)
 			return
