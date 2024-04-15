@@ -167,7 +167,8 @@ func badNumberFormat(str string) bool {
 
 func getOrders(s *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		orders, err := s.db.GetOrders(s.session.user)
+
+		orders, err := s.db.GetOrders(s.session.user, r.Context())
 		if err != nil {
 			http.Error(w, "can't get user's orders", http.StatusInternalServerError)
 			return

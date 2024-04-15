@@ -188,8 +188,8 @@ func (db *DB) UploadOrder(login string, number string) error {
 	return err
 }
 
-func (db *DB) GetOrders(login string) ([]model.OrderSchema, error) {
-	rows, err := db.db.QueryContext(context.Background(), querySelectOrders, login)
+func (db *DB) GetOrders(login string, ctx context.Context) ([]model.OrderSchema, error) {
+	rows, err := db.db.QueryContext(ctx, querySelectOrders, login)
 	if err != nil {
 		return nil, err
 	}
