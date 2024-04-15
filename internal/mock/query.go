@@ -4,7 +4,7 @@ var migrations = []string{
 	`CREATE TABLE IF NOT EXISTS mock_orders (
 		order_number TEXT UNIQUE NOT NULL,
 		status TEXT NOT NULL,
-		sum INTEGER NOT NULL
+		sum FLOAT NOT NULL
 	);`,
 }
 
