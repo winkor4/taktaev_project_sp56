@@ -8,11 +8,11 @@ type RegisterSchema struct {
 }
 
 type OrderSchema struct {
-	Number     string `json:"number"`
-	Status     string `json:"status"`
-	Accrual    int    `json:"accrual"`
-	UploadedAt string `json:"uploaded_at"`
-	Date       time.Time
+	Number     string    `json:"number"`
+	Status     string    `json:"status"`
+	Accrual    int       `json:"accrual"`
+	UploadedAt string    `json:"uploaded_at"`
+	Date       time.Time `json:"-"`
 }
 
 type AccrualSchema struct {

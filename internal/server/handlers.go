@@ -185,7 +185,8 @@ func getOrders(s *Server) http.HandlerFunc {
 			http.Error(w, "Can't encode response", http.StatusInternalServerError)
 			return
 		}
-		log.Println(orders)
+		str, _ := json.Marshal(orders)
+		log.Println(string(str))
 	}
 }
 
