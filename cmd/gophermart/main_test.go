@@ -19,6 +19,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// В коде тестов много дублей кода
+// Если требуется, сделаю рефакторинг
+// Делал на скорую руку, чтобы не тратить лишнего времени
 func TestApp(t *testing.T) {
 
 	srv := newTestSrv(t)

@@ -16,6 +16,8 @@ type mockServer struct {
 	db  *mockDB
 }
 
+// Мок сервер эмулирует работы сервиса расчетов бонусов
+// Запускается только во время тестов
 func Run(cfg *config.Config) {
 
 	dsn := "host=localhost user=postgres password=123 dbname=gophermart sslmode=disable"
