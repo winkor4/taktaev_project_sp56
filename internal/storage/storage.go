@@ -190,7 +190,7 @@ func (db *DB) UploadOrder(login string, number string) error {
 	return err
 }
 
-func (db *DB) GetOrders(login string, ctx context.Context) ([]model.OrderSchema, error) {
+func (db *DB) GetOrders(ctx context.Context, login string) ([]model.OrderSchema, error) {
 	log.Println("GetOrders - start " + login)
 
 	rows, err := db.db.QueryContext(ctx, querySelectOrders, login)

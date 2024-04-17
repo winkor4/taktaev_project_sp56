@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -160,16 +161,34 @@ func uploadOrder(s *Server) http.HandlerFunc {
 }
 
 func badNumberFormat(str string) bool {
-	if _, err := strconv.Atoi(str); err != nil {
-		return true
+	sum := 0
+	nDigits := len(str)
+	parity := nDigits % 2
+
+	for i := 0; i < nDigits; i++ {
+		digit, err := strconv.Atoi(string(str[i]))
+		if err != nil {
+			return true
+		}
+		if i%2 == parity {
+			digit *= 2
+			if digit > 9 {
+				digit -= 9
+			}
+		}
+		sum += digit
 	}
-	return false
+	return sum%10 != 0
 }
 
 func getOrders(s *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		orders, err := s.db.GetOrders(s.session.user, r.Context())
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+		r = r.WithContext(ctx)
+
+		orders, err := s.db.GetOrders(r.Context(), s.session.user)
 		log.Println("GetOrders - end " + s.session.user)
 		if err != nil {
 			http.Error(w, "can't get user's orders", http.StatusInternalServerError)

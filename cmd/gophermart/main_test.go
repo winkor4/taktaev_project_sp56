@@ -26,7 +26,6 @@ func TestApp(t *testing.T) {
 	testUploadOrder(t, srv)
 	testGetOrders(t, srv)
 	testBalance(t, srv)
-
 }
 
 func newTestSrv(t *testing.T) *httptest.Server {
