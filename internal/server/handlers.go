@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -189,7 +188,6 @@ func getOrders(s *Server) http.HandlerFunc {
 		r = r.WithContext(ctx)
 
 		orders, err := s.db.GetOrders(r.Context(), s.session.user)
-		log.Println("GetOrders - end " + s.session.user)
 		if err != nil {
 			http.Error(w, "can't get user's orders", http.StatusInternalServerError)
 			return
@@ -204,8 +202,6 @@ func getOrders(s *Server) http.HandlerFunc {
 			http.Error(w, "Can't encode response", http.StatusInternalServerError)
 			return
 		}
-		str, _ := json.Marshal(orders)
-		log.Println(string(str))
 	}
 }
 
@@ -256,7 +252,7 @@ func getOrdersAccrual(s *Server, orders []string) error {
 	if err != nil {
 		return err
 	}
-	err = s.db.SetBonuses(accrualList)
+	err = s.db.SetBonuses(context.Background(), accrualList)
 	if err != nil {
 		return err
 	}
@@ -267,7 +263,7 @@ func getOrdersAccrual(s *Server, orders []string) error {
 func getBalance(s *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		balance, err := s.db.GetBalance(s.session.user)
+		balance, err := s.db.GetBalance(r.Context(), s.session.user)
 		if err != nil && err != sql.ErrNoRows {
 			http.Error(w, "can't get balance", http.StatusInternalServerError)
 			return
@@ -280,5 +276,59 @@ func getBalance(s *Server) http.HandlerFunc {
 			return
 		}
 
+	}
+}
+
+func withdrawBonuses(s *Server) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		var schema model.WithdrawSchema
+		err := json.NewDecoder(r.Body).Decode(&schema)
+		if err != nil {
+			http.Error(w, "Can't read body", http.StatusBadRequest)
+			return
+		}
+
+		orderNumber := string(schema.Order)
+		if orderNumber == "" {
+			http.Error(w, "empty order number", http.StatusBadRequest)
+			return
+		}
+
+		if badNumberFormat(orderNumber) {
+			http.Error(w, "bad format order number", http.StatusUnprocessableEntity)
+			return
+		}
+
+		err = s.db.WithdrawBonuses(r.Context(), s.session.user, schema)
+		if err != nil {
+			if err == storage.ErrPaymentRequired {
+				http.Error(w, "not enough bonuses", http.StatusPaymentRequired)
+				return
+			}
+			http.Error(w, "can't withdraw bonuses", http.StatusInternalServerError)
+			return
+		}
+	}
+}
+
+func getWithdrawals(s *Server) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		orders, err := s.db.Getwithdrawels(r.Context(), s.session.user)
+		if err != nil {
+			http.Error(w, "can't get user's orders", http.StatusInternalServerError)
+			return
+		}
+		if len(orders) == 0 {
+			http.Error(w, "no content", http.StatusNoContent)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(orders); err != nil {
+			http.Error(w, "Can't encode response", http.StatusInternalServerError)
+			return
+		}
 	}
 }

@@ -135,4 +135,32 @@ var (
 		bonuses
 	WHERE
 		user_login = $1`
+
+	queryInsertSpending = `
+	INSERT INTO spending
+	(
+		user_login,
+		order_number,
+		date,
+		sum
+	)
+	VALUES 
+	(
+		$1,
+		$2,
+		$3,
+		$4
+	)`
+
+	querySelectSpending = `
+	SELECT
+		order_number,
+		sum,
+		date
+	FROM
+		spending
+	WHERE
+		user_login = $1
+	ORDER BY
+		date`
 )

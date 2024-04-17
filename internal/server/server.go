@@ -62,6 +62,8 @@ func ordersRouter(s *Server) *chi.Mux {
 	r.Post("/orders", checkContentTypeMiddleware(uploadOrder(s), "text/plain"))
 	r.Get("/orders", getOrders(s))
 	r.Get("/balance", getBalance(s))
+	r.Post("/balance/withdraw", checkContentTypeMiddleware(withdrawBonuses(s), "application/json"))
+	r.Get("/withdrawals", getWithdrawals(s))
 
 	return r
 }
@@ -138,14 +140,13 @@ func refreshOrders(s *Server) {
 	for {
 		orders, err := s.db.OrdersToRefresh()
 		if err != nil {
-			log.Println(err.Error())
+			log.Println("stop refreshOrders: " + err.Error())
 			break
 		}
 		if len(orders) > 0 {
-			log.Println("start accrual")
 			err := getOrdersAccrual(s, orders)
 			if err != nil {
-				log.Println(err.Error())
+				log.Println("stop refreshOrders: " + err.Error())
 				break
 			}
 		}

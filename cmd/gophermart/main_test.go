@@ -26,6 +26,7 @@ func TestApp(t *testing.T) {
 	testUploadOrder(t, srv)
 	testGetOrders(t, srv)
 	testBalance(t, srv)
+	testWithdraw(t, srv)
 }
 
 func newTestSrv(t *testing.T) *httptest.Server {
@@ -215,7 +216,7 @@ func testUploadOrder(t *testing.T, srv *httptest.Server) {
 			name:     "POST /api/user/orders",
 			user:     "ivan",
 			withAuth: true,
-			body:     []byte("1234567890"),
+			body:     []byte("123456782"),
 			want: want{
 				statusCode: http.StatusAccepted,
 			},
@@ -224,7 +225,7 @@ func testUploadOrder(t *testing.T, srv *httptest.Server) {
 			name:     "POST /api/user/orders",
 			user:     "ivan",
 			withAuth: true,
-			body:     []byte("1234567891"),
+			body:     []byte("1234567897"),
 			want: want{
 				statusCode: http.StatusAccepted,
 			},
@@ -233,7 +234,7 @@ func testUploadOrder(t *testing.T, srv *httptest.Server) {
 			name:     "POST /api/user/orders",
 			user:     "ivan",
 			withAuth: true,
-			body:     []byte("1234567892"),
+			body:     []byte("12345678929"),
 			want: want{
 				statusCode: http.StatusAccepted,
 			},
@@ -242,7 +243,7 @@ func testUploadOrder(t *testing.T, srv *httptest.Server) {
 			name:     "POST /api/user/orders повторный",
 			user:     "ivan",
 			withAuth: true,
-			body:     []byte("1234567890"),
+			body:     []byte("123456782"),
 			want: want{
 				statusCode: http.StatusOK,
 			},
@@ -251,7 +252,7 @@ func testUploadOrder(t *testing.T, srv *httptest.Server) {
 			name:     "POST /api/user/orders без авторизации",
 			user:     "ivan",
 			withAuth: false,
-			body:     []byte("1234567890"),
+			body:     []byte("123456782"),
 			want: want{
 				statusCode: http.StatusUnauthorized,
 			},
@@ -260,7 +261,7 @@ func testUploadOrder(t *testing.T, srv *httptest.Server) {
 			name:     "POST /api/user/orders чужой заказ",
 			user:     "alex",
 			withAuth: true,
-			body:     []byte("1234567890"),
+			body:     []byte("123456782"),
 			want: want{
 				statusCode: http.StatusConflict,
 			},
@@ -367,13 +368,13 @@ func testGetOrders(t *testing.T, srv *httptest.Server) {
 				statusCode: http.StatusOK,
 				body: []model.OrderSchema{
 					{
-						Number: "1234567890",
+						Number: "123456782",
 					},
 					{
-						Number: "1234567891",
+						Number: "1234567897",
 					},
 					{
-						Number: "1234567892",
+						Number: "12345678929",
 					},
 				},
 			},
@@ -506,4 +507,161 @@ func testBalance(t *testing.T, srv *httptest.Server) {
 
 		})
 	}
+}
+
+func testWithdraw(t *testing.T, srv *httptest.Server) {
+
+	type (
+		want struct {
+			statusCode int
+			response   model.WithdrawalsSchema
+		}
+		testData struct {
+			name             string
+			body             []byte
+			checkWithdrawals bool
+			want             want
+		}
+		regSchema struct {
+			Login    string `json:"login"`
+			Password string `json:"password"`
+		}
+	)
+
+	regData := make(map[string][]byte)
+
+	var logPass []byte
+	logPass, err := json.Marshal(regSchema{
+		Login:    "ivan",
+		Password: "1234",
+	})
+	require.NoError(t, err)
+	regData["ivan"] = logPass
+
+	authCookie := make(map[string][]*http.Cookie)
+
+	for user, logPass := range regData {
+		body := bytes.NewReader(logPass)
+		request, err := http.NewRequest(http.MethodPost, srv.URL+"/api/user/login", body)
+		require.NoError(t, err)
+		request.Header.Set("Content-Type", "application/json")
+
+		client := srv.Client()
+		r, err := client.Do(request)
+		require.NoError(t, err)
+
+		authCookie[user] = r.Cookies()
+
+		err = r.Body.Close()
+		require.NoError(t, err)
+	}
+
+	reqData := []model.WithdrawSchema{
+		{
+			Order: "1230",
+			Sum:   100,
+		},
+		{
+			Order: "1231",
+			Sum:   100,
+		},
+		{
+			Order: "12310",
+			Sum:   10000,
+		},
+	}
+
+	reqBodyes := make(map[int][]byte)
+	for i, data := range reqData {
+		body, err := json.Marshal(data)
+		require.NoError(t, err)
+		reqBodyes[i] = body
+	}
+
+	testTable := []testData{
+		{
+			name:             "POST /api/user/balance/withdraw c проверкой списания",
+			body:             reqBodyes[0],
+			checkWithdrawals: true,
+			want: want{
+				statusCode: http.StatusOK,
+				response: model.WithdrawalsSchema{
+					Order: "1230",
+					Sum:   100,
+				},
+			},
+		},
+		{
+			name:             "POST /api/user/balance/withdraw некорректный номер заказа",
+			body:             reqBodyes[1],
+			checkWithdrawals: false,
+			want: want{
+				statusCode: http.StatusUnprocessableEntity,
+			},
+		},
+		{
+			name:             "POST /api/user/balance/withdraw недостаточно бонусов",
+			body:             reqBodyes[2],
+			checkWithdrawals: false,
+			want: want{
+				statusCode: http.StatusPaymentRequired,
+			},
+		},
+	}
+
+	for _, testData := range testTable {
+		t.Run(testData.name, func(t *testing.T) {
+
+			body := bytes.NewReader(testData.body)
+			request, err := http.NewRequest(http.MethodPost, srv.URL+"/api/user/balance/withdraw", body)
+			require.NoError(t, err)
+			request.Header.Set("Content-Type", "application/json")
+
+			for _, c := range authCookie["ivan"] {
+				request.AddCookie(c)
+			}
+
+			client := srv.Client()
+			r, err := client.Do(request)
+			require.NoError(t, err)
+
+			assert.Equal(t, testData.want.statusCode, r.StatusCode)
+
+			err = r.Body.Close()
+			require.NoError(t, err)
+
+			if !testData.checkWithdrawals {
+				return
+			}
+
+			request, err = http.NewRequest(http.MethodGet, srv.URL+"/api/user/withdrawals", nil)
+			require.NoError(t, err)
+
+			for _, c := range authCookie["ivan"] {
+				request.AddCookie(c)
+			}
+
+			client = srv.Client()
+			r, err = client.Do(request)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusOK, r.StatusCode)
+
+			rBody, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			err = r.Body.Close()
+			require.NoError(t, err)
+
+			var orders []model.WithdrawalsSchema
+			err = json.Unmarshal(rBody, &orders)
+			require.NoError(t, err)
+
+			for _, order := range orders {
+				assert.Equal(t, testData.want.response.Order, order.Order)
+				assert.Equal(t, testData.want.response.Sum, order.Sum)
+			}
+
+		})
+	}
+
 }

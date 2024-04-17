@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
-	"strconv"
 	"strings"
 	"time"
 
@@ -14,11 +12,27 @@ import (
 	"github.com/winkor4/taktaev_project_sp56/internal/model"
 )
 
-var ErrConflict = errors.New("conflict")
+var (
+	ErrConflict        = errors.New("conflict")
+	ErrPaymentRequired = errors.New("PaymentRequired")
+)
 
 type DB struct {
 	db   *sql.DB
 	auth map[string]bool
+}
+
+type bonuses struct {
+	login string
+	sum   float32
+	out   float32
+}
+
+type spending struct {
+	user_login   string
+	order_number string
+	date         time.Time
+	sum          float32
 }
 
 func New(dsn string) (*DB, error) {
@@ -191,15 +205,12 @@ func (db *DB) UploadOrder(login string, number string) error {
 }
 
 func (db *DB) GetOrders(ctx context.Context, login string) ([]model.OrderSchema, error) {
-	log.Println("GetOrders - start " + login)
 
 	rows, err := db.db.QueryContext(ctx, querySelectOrders, login)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-
-	log.Println("GetOrders - query OK " + login)
 
 	orders := make([]model.OrderSchema, 0)
 	for rows.Next() {
@@ -210,7 +221,6 @@ func (db *DB) GetOrders(ctx context.Context, login string) ([]model.OrderSchema,
 		}
 		order.UploadedAt = order.Date.Format(time.RFC3339)
 		orders = append(orders, order)
-		log.Println("GetOrders - len(orders) = " + strconv.Itoa(len(orders)) + " - " + login)
 	}
 
 	if rows.Err() != nil {
@@ -272,7 +282,7 @@ func (db *DB) UpdateOrders(accrualList []model.AccrualSchema) error {
 	return nil
 }
 
-func (db *DB) SetBonuses(accrualList []model.AccrualSchema) error {
+func (db *DB) SetBonuses(ctx context.Context, accrualList []model.AccrualSchema) error {
 
 	orders, err := findLogins(db, accrualList)
 	if err != nil {
@@ -284,15 +294,13 @@ func (db *DB) SetBonuses(accrualList []model.AccrualSchema) error {
 		return err
 	}
 
-	ctx := context.Background()
 	for _, data := range orders {
-		_, err = tx.ExecContext(ctx, queryInsertBonuses,
-			data.user,
-			data.Accrual,
-			0)
-
+		err = insertBonuses(ctx, tx, bonuses{
+			login: data.user,
+			sum:   data.Accrual,
+			out:   0,
+		})
 		if err != nil {
-			tx.Rollback()
 			return err
 		}
 	}
@@ -354,7 +362,22 @@ func findLogins(db *DB, accrualList []model.AccrualSchema) ([]accrualLogin, erro
 	return orders, nil
 }
 
-func (db *DB) GetBalance(login string) (model.BalaneSchema, error) {
+func insertBonuses(ctx context.Context, tx *sql.Tx, bonuses bonuses) error {
+
+	_, err := tx.ExecContext(ctx, queryInsertBonuses,
+		bonuses.login,
+		bonuses.sum,
+		bonuses.out)
+
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return nil
+}
+
+func (db *DB) GetBalance(ctx context.Context, login string) (model.BalaneSchema, error) {
 	row := db.db.QueryRowContext(context.Background(), queryBalance, login)
 
 	var balance model.BalaneSchema
@@ -364,4 +387,91 @@ func (db *DB) GetBalance(login string) (model.BalaneSchema, error) {
 	}
 
 	return balance, nil
+}
+
+func (db *DB) WithdrawBonuses(ctx context.Context, login string, data model.WithdrawSchema) error {
+
+	balance, err := db.GetBalance(ctx, login)
+	if err != nil {
+		return err
+	}
+
+	if balance.Current < data.Sum {
+		return ErrPaymentRequired
+	}
+
+	tx, err := db.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	err = insertBonuses(ctx, tx, bonuses{
+		login: login,
+		sum:   -data.Sum,
+		out:   data.Sum,
+	})
+	if err != nil {
+		return err
+	}
+
+	err = insertSpending(ctx, tx, spending{
+		user_login:   login,
+		order_number: data.Order,
+		date:         time.Now(),
+		sum:          data.Sum,
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return nil
+}
+
+func insertSpending(ctx context.Context, tx *sql.Tx, data spending) error {
+
+	_, err := tx.ExecContext(ctx, queryInsertSpending,
+		data.user_login,
+		data.order_number,
+		data.date,
+		data.sum)
+
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return nil
+}
+
+func (db *DB) Getwithdrawels(ctx context.Context, login string) ([]model.WithdrawalsSchema, error) {
+
+	rows, err := db.db.QueryContext(ctx, querySelectSpending, login)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	orders := make([]model.WithdrawalsSchema, 0)
+	for rows.Next() {
+		var order model.WithdrawalsSchema
+		err := rows.Scan(&order.Order,
+			&order.Sum,
+			&order.Date)
+		if err != nil {
+			return nil, err
+		}
+		order.ProcessedAt = order.Date.Format(time.RFC3339)
+		orders = append(orders, order)
+	}
+
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	return orders, nil
 }
