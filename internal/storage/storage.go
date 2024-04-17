@@ -29,10 +29,10 @@ type bonuses struct {
 }
 
 type spending struct {
-	user_login   string
-	order_number string
-	date         time.Time
-	sum          float32
+	userLogin   string
+	orderNumber string
+	date        time.Time
+	sum         float32
 }
 
 func New(dsn string) (*DB, error) {
@@ -415,10 +415,10 @@ func (db *DB) WithdrawBonuses(ctx context.Context, login string, data model.With
 	}
 
 	err = insertSpending(ctx, tx, spending{
-		user_login:   login,
-		order_number: data.Order,
-		date:         time.Now(),
-		sum:          data.Sum,
+		userLogin:   login,
+		orderNumber: data.Order,
+		date:        time.Now(),
+		sum:         data.Sum,
 	})
 	if err != nil {
 		return err
@@ -435,8 +435,8 @@ func (db *DB) WithdrawBonuses(ctx context.Context, login string, data model.With
 func insertSpending(ctx context.Context, tx *sql.Tx, data spending) error {
 
 	_, err := tx.ExecContext(ctx, queryInsertSpending,
-		data.user_login,
-		data.order_number,
+		data.userLogin,
+		data.orderNumber,
 		data.date,
 		data.sum)
 
