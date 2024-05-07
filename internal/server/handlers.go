@@ -290,10 +290,6 @@ func getOrdersAccrual(s *Server, orders []string) error {
 	if err != nil {
 		return err
 	}
-	err = s.db.SetBonuses(ctx, accrualList)
-	if err != nil {
-		return err
-	}
 
 	return nil
 }

@@ -221,16 +221,15 @@ func (db *DB) UpdateOrders(ctx context.Context, accrualList []model.AccrualSchem
 		return err
 	}
 
-	for _, data := range accrualList {
-		_, err = tx.ExecContext(ctx, queryUpdateOrder,
-			data.Status,
-			data.Accrual,
-			data.Order)
-
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
+	err = db.updateOrdersWithTx(ctx, tx, accrualList)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	err = db.setBonusesWithTx(ctx, tx, accrualList)
+	if err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -241,14 +240,23 @@ func (db *DB) UpdateOrders(ctx context.Context, accrualList []model.AccrualSchem
 	return nil
 }
 
-func (db *DB) SetBonuses(ctx context.Context, accrualList []model.AccrualSchema) error {
+func (db *DB) updateOrdersWithTx(ctx context.Context, tx *sql.Tx, accrualList []model.AccrualSchema) error {
+	for _, data := range accrualList {
+		_, err := tx.ExecContext(ctx, queryUpdateOrder,
+			data.Status,
+			data.Accrual,
+			data.Order)
+
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (db *DB) setBonusesWithTx(ctx context.Context, tx *sql.Tx, accrualList []model.AccrualSchema) error {
 
 	orders, err := findLogins(db, accrualList)
-	if err != nil {
-		return err
-	}
-
-	tx, err := db.db.Begin()
 	if err != nil {
 		return err
 	}
@@ -263,12 +271,6 @@ func (db *DB) SetBonuses(ctx context.Context, accrualList []model.AccrualSchema)
 			return err
 		}
 	}
-
-	if err := tx.Commit(); err != nil {
-		tx.Rollback()
-		return err
-	}
-
 	return nil
 }
 
