@@ -350,20 +350,34 @@ func (db *DB) GetBalance(ctx context.Context, login string) (model.BalanсeSchem
 	return balance, nil
 }
 
-func (db *DB) WithdrawBonuses(ctx context.Context, login string, data model.WithdrawSchema) error {
+func (db *DB) getBalanceWithTx(ctx context.Context, tx *sql.Tx, login string) (model.BalanсeSchema, error) {
+	row := tx.QueryRowContext(ctx, queryBalance, login)
 
-	balance, err := db.GetBalance(ctx, login)
+	var balance model.BalanсeSchema
+	err := row.Scan(&balance.Current, &balance.WithDrawn)
 	if err != nil {
-		return err
+		return balance, err
 	}
 
-	if balance.Current < data.Sum {
-		return ErrPaymentRequired
-	}
+	return balance, nil
+}
+
+func (db *DB) WithdrawBonuses(ctx context.Context, login string, data model.WithdrawSchema) error {
 
 	tx, err := db.db.Begin()
 	if err != nil {
 		return err
+	}
+
+	balance, err := db.getBalanceWithTx(ctx, tx, login)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if balance.Current < data.Sum {
+		tx.Rollback()
+		return ErrPaymentRequired
 	}
 
 	err = insertBonuses(ctx, tx, bonuses{
