@@ -9,7 +9,7 @@ import (
 type Config struct {
 	RunAddress           string `env:"RUN_ADDRESS"`
 	DatabaseURI          string `env:"DATABASE_URI"`
-	AccuralSystemAddress string `env:"ACCRUAL_SYSTEM_ADDRESS"`
+	AccrualSystemAddress string `env:"ACCRUAL_SYSTEM_ADDRESS"`
 }
 
 var (
@@ -38,8 +38,8 @@ func Parse() (*Config, error) {
 	if cfg.DatabaseURI == "" {
 		cfg.DatabaseURI = flagDatabaseURI
 	}
-	if cfg.AccuralSystemAddress == "" {
-		cfg.AccuralSystemAddress = flagAccuralSystemAddress
+	if cfg.AccrualSystemAddress == "" {
+		cfg.AccrualSystemAddress = flagAccuralSystemAddress
 	}
 
 	return cfg, nil

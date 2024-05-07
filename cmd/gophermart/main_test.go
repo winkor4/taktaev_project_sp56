@@ -54,7 +54,7 @@ func newTestSrv(t *testing.T) *httptest.Server {
 		DB:  db,
 	})
 
-	cfg.AccuralSystemAddress = "http://localhost:8081"
+	cfg.AccrualSystemAddress = "http://localhost:8081"
 	go mock.Run(cfg)
 
 	server.Workers(srv)

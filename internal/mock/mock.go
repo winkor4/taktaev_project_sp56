@@ -35,7 +35,7 @@ func Run(cfg *config.Config) {
 	db.truncate()
 	go calculateAccural(db)
 
-	adr := strings.ReplaceAll(cfg.AccuralSystemAddress, "http://", "")
+	adr := strings.ReplaceAll(cfg.AccrualSystemAddress, "http://", "")
 
 	err = http.ListenAndServe(adr, srvRouter(&srv))
 	if err != nil {

@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -9,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/winkor4/taktaev_project_sp56/internal/model"
 	"github.com/winkor4/taktaev_project_sp56/internal/pkg/config"
 	"github.com/winkor4/taktaev_project_sp56/internal/storage"
 )
@@ -136,21 +139,113 @@ func Workers(s *Server) {
 	go refreshOrders(s)
 }
 
+type chAccrualSystem struct {
+	chOrders  chan string
+	chAccrual chan model.AccrualSchema
+	closed    bool
+	err       error
+}
+
+func (ch *chAccrualSystem) close(err error) {
+	ch.closed = true
+	ch.err = err
+}
+
 func refreshOrders(s *Server) {
-	log.Println("start refreshOrders with dsn: " + s.cfg.AccuralSystemAddress)
+	log.Println("start refreshOrders with dsn: " + s.cfg.AccrualSystemAddress)
+	var ch chAccrualSystem
+	ch.chOrders = make(chan string)
+	ch.chAccrual = make(chan model.AccrualSchema)
+	ch.closed = false
+
+	defer close(ch.chOrders)
+	defer close(ch.chAccrual)
+
+	for i := 0; i < 10; i++ {
+		go getOrdersFromAccrualSystem(s, &ch)
+	}
+	go updateOrders(s, &ch)
+
 	for {
+
+		if ch.closed {
+			log.Println("stop refreshOrders: " + ch.err.Error())
+			break
+		}
+
 		orders, err := s.db.OrdersToRefresh(context.Background())
 		if err != nil {
 			log.Println("stop refreshOrders: " + err.Error())
+			ch.close(err)
 			break
 		}
-		if len(orders) > 0 {
-			err := getOrdersAccrual(s, orders)
-			if err != nil {
-				log.Println("stop refreshOrders: " + err.Error())
-				break
-			}
+
+		for _, order := range orders {
+			ch.chOrders <- order
 		}
 		time.Sleep(time.Second * 2)
 	}
+}
+
+func getOrdersFromAccrualSystem(s *Server, ch *chAccrualSystem) {
+	basePath := s.cfg.AccrualSystemAddress + "/api/orders/"
+	client := http.Client{}
+
+	for order := range ch.chOrders {
+
+		request, err := http.NewRequest(http.MethodGet, basePath+order, nil)
+		if err != nil {
+			ch.close(err)
+			return
+		}
+		r, err := client.Do(request)
+		if err != nil {
+			ch.close(err)
+			return
+		}
+		rBody, err := io.ReadAll(r.Body)
+		if err != nil {
+			ch.close(err)
+			return
+		}
+		err = r.Body.Close()
+		if err != nil {
+			ch.close(err)
+			return
+		}
+		if r.StatusCode == http.StatusTooManyRequests {
+			time.Sleep(time.Second * 2)
+			continue
+		}
+		if r.StatusCode != http.StatusOK {
+			time.Sleep(time.Second * 2)
+			continue
+		}
+		var accrualData model.AccrualSchema
+		err = json.Unmarshal(rBody, &accrualData)
+		if err != nil {
+			ch.close(err)
+			return
+		}
+		if ch.closed {
+			break
+		}
+		ch.chAccrual <- accrualData
+	}
+}
+
+func updateOrders(s *Server, ch *chAccrualSystem) {
+	ctx := context.Background()
+
+	for data := range ch.chAccrual {
+		accrualList := make([]model.AccrualSchema, 0)
+		accrualList = append(accrualList, data)
+
+		err := s.db.UpdateOrders(ctx, accrualList)
+		if err != nil {
+			ch.close(err)
+			return
+		}
+	}
+
 }
