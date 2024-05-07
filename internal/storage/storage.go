@@ -18,8 +18,7 @@ var (
 )
 
 type DB struct {
-	db   *sql.DB
-	auth map[string]bool
+	db *sql.DB
 }
 
 type bonuses struct {
@@ -66,9 +65,7 @@ func New(dsn string) (*DB, error) {
 		return nil, err
 	}
 
-	auth := make(map[string]bool)
-
-	return &DB{db: db, auth: auth}, nil
+	return &DB{db: db}, nil
 }
 
 func (db *DB) Ping(ctx context.Context) error {
@@ -132,18 +129,6 @@ func (db *DB) GetPass(ctx context.Context, login string) (string, error) {
 	}
 
 	return *pass, nil
-}
-
-func (db *DB) Authorisation(login string) {
-	db.auth[login] = true
-}
-
-func (db *DB) Authorized(login string) bool {
-	out, ok := db.auth[login]
-	if !ok {
-		return false
-	}
-	return out
 }
 
 func (db *DB) CheckOrder(ctx context.Context, login string, number string) error {

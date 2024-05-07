@@ -46,8 +46,6 @@ func register(s *Server) http.HandlerFunc {
 			return
 		}
 
-		s.db.Authorisation(schema.Login)
-
 		token, err := authToken(schema.Login)
 		if err != nil {
 			http.Error(w, "can't auth", http.StatusInternalServerError)
@@ -94,8 +92,6 @@ func login(s *Server) http.HandlerFunc {
 			http.Error(w, "can't auth", http.StatusUnauthorized)
 			return
 		}
-
-		s.db.Authorisation(schema.Login)
 
 		token, err := authToken(schema.Login)
 		if err != nil {

@@ -125,11 +125,6 @@ func authorizationMiddleware(s *Server) func(h http.Handler) http.Handler {
 				return
 			}
 
-			if !s.db.Authorized(claims.Login) {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
-				return
-			}
-
 			s.session.user = claims.Login
 
 			h.ServeHTTP(w, r)
