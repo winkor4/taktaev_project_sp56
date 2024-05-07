@@ -18,14 +18,14 @@ type Config struct {
 	DB  *storage.DB
 }
 
-type session struct {
-	user string
-}
 type Server struct {
-	cfg     *config.Config
-	db      *storage.DB
-	session session
+	cfg *config.Config
+	db  *storage.DB
 }
+
+type ctxKey string
+
+const keyUser ctxKey = "user"
 
 // Осознанно оставил ключ в коде
 // Куда его лучше прятать, нужна подсказка
@@ -64,7 +64,7 @@ func SrvRouter(s *Server) *chi.Mux {
 
 func ordersRouter(s *Server) *chi.Mux {
 	r := chi.NewRouter()
-	r.Use(authorizationMiddleware(s))
+	r.Use(authorizationMiddleware())
 
 	r.Post("/orders", checkContentTypeMiddleware(uploadOrder(s), "text/plain"))
 	r.Get("/orders", getOrders(s))
@@ -92,7 +92,7 @@ func checkContentTypeMiddleware(h http.HandlerFunc, exContentType string) http.H
 	}
 }
 
-func authorizationMiddleware(s *Server) func(h http.Handler) http.Handler {
+func authorizationMiddleware() func(h http.Handler) http.Handler {
 	return func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -126,9 +126,8 @@ func authorizationMiddleware(s *Server) func(h http.Handler) http.Handler {
 				return
 			}
 
-			s.session.user = claims.Login
-
-			h.ServeHTTP(w, r)
+			ctx := context.WithValue(r.Context(), keyUser, claims.Login)
+			h.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }

@@ -15,6 +15,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+func userFromCtx(ctx context.Context) (string, bool) {
+	user, ok := ctx.Value(keyUser).(string)
+	if !ok {
+		return "", ok
+	}
+	return user, ok
+}
+
 func register(s *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -148,7 +156,13 @@ func uploadOrder(s *Server) http.HandlerFunc {
 			return
 		}
 
-		err = s.db.CheckOrder(r.Context(), s.session.user, orderNumber)
+		user, ok := userFromCtx(r.Context())
+		if !ok {
+			http.Error(w, "can't read login", http.StatusInternalServerError)
+			return
+		}
+
+		err = s.db.CheckOrder(r.Context(), user, orderNumber)
 		if err == nil {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -161,7 +175,7 @@ func uploadOrder(s *Server) http.HandlerFunc {
 			return
 		}
 
-		err = s.db.UploadOrder(r.Context(), s.session.user, orderNumber)
+		err = s.db.UploadOrder(r.Context(), user, orderNumber)
 		if err != nil {
 			http.Error(w, "can't write order number", http.StatusInternalServerError)
 			return
@@ -200,7 +214,12 @@ func getOrders(s *Server) http.HandlerFunc {
 		defer cancel()
 		r = r.WithContext(ctx)
 
-		orders, err := s.db.GetOrders(r.Context(), s.session.user)
+		user, ok := userFromCtx(r.Context())
+		if !ok {
+			http.Error(w, "can't read login", http.StatusInternalServerError)
+			return
+		}
+		orders, err := s.db.GetOrders(r.Context(), user)
 		if err != nil {
 			http.Error(w, "can't get user's orders", http.StatusInternalServerError)
 			return
@@ -282,7 +301,12 @@ func getOrdersAccrual(s *Server, orders []string) error {
 func getBalance(s *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		balance, err := s.db.GetBalance(r.Context(), s.session.user)
+		user, ok := userFromCtx(r.Context())
+		if !ok {
+			http.Error(w, "can't read login", http.StatusInternalServerError)
+			return
+		}
+		balance, err := s.db.GetBalance(r.Context(), user)
 		if err != nil && err != sql.ErrNoRows {
 			http.Error(w, "can't get balance", http.StatusInternalServerError)
 			return
@@ -319,7 +343,12 @@ func withdrawBonuses(s *Server) http.HandlerFunc {
 			return
 		}
 
-		err = s.db.WithdrawBonuses(r.Context(), s.session.user, schema)
+		user, ok := userFromCtx(r.Context())
+		if !ok {
+			http.Error(w, "can't read login", http.StatusInternalServerError)
+			return
+		}
+		err = s.db.WithdrawBonuses(r.Context(), user, schema)
 		if err != nil {
 			if err == storage.ErrPaymentRequired {
 				http.Error(w, "not enough bonuses", http.StatusPaymentRequired)
@@ -334,7 +363,12 @@ func withdrawBonuses(s *Server) http.HandlerFunc {
 func getWithdrawals(s *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		orders, err := s.db.Getwithdrawels(r.Context(), s.session.user)
+		user, ok := userFromCtx(r.Context())
+		if !ok {
+			http.Error(w, "can't read login", http.StatusInternalServerError)
+			return
+		}
+		orders, err := s.db.Getwithdrawels(r.Context(), user)
 		if err != nil {
 			http.Error(w, "can't get user's orders", http.StatusInternalServerError)
 			return
