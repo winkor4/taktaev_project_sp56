@@ -53,6 +53,7 @@ func (s *Server) Run() error {
 
 func SrvRouter(s *Server) *chi.Mux {
 	r := chi.NewRouter()
+	r.Use(gzipMiddleware)
 
 	r.Post("/api/user/register", checkContentTypeMiddleware(register(s), "application/json"))
 	r.Post("/api/user/login", checkContentTypeMiddleware(login(s), "application/json"))
