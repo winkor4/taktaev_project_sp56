@@ -146,6 +146,8 @@ type chAccrualSystem struct {
 	err       error
 }
 
+// Не уверен, что так можно делать
+// Напиши мне комментарий по этому поводу
 func (ch *chAccrualSystem) close(err error) {
 	ch.closed = true
 	ch.err = err
@@ -238,6 +240,9 @@ func updateOrders(s *Server, ch *chAccrualSystem) {
 	ctx := context.Background()
 
 	for data := range ch.chAccrual {
+		// Отправляю по одному заказу, т.к. если ждать накопления n заказов для отправки
+		// может зависнуть на ожидании, пока наберется нужное количество
+		// как тут можно красиво обыграть такую ситуацию?
 		accrualList := make([]model.AccrualSchema, 0)
 		accrualList = append(accrualList, data)
 
