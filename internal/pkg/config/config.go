@@ -25,6 +25,7 @@ func Parse() (*Config, error) {
 	flag.StringVar(&flagRunAddress, "a", "", "srv run addres and port")
 	flag.StringVar(&flagDatabaseURI, "d", "", "PostgresSQL server")
 	flag.StringVar(&flagAccuralSystemAddress, "r", "", "accural system address and port")
+	flag.Parse()
 
 	err := env.Parse(cfg)
 	if err != nil {

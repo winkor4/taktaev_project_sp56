@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"strings"
@@ -143,7 +144,7 @@ func Workers(s *Server) {
 func refreshOrders(s *Server) {
 	log.Println("start refreshOrders with dsn: " + s.cfg.AccuralSystemAddress)
 	for {
-		orders, err := s.db.OrdersToRefresh()
+		orders, err := s.db.OrdersToRefresh(context.Background())
 		if err != nil {
 			log.Println("stop refreshOrders: " + err.Error())
 			break

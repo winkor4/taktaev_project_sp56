@@ -21,7 +21,7 @@ type AccrualSchema struct {
 	Accrual float32 `json:"accrual"`
 }
 
-type BalaneSchema struct {
+type BalanсeSchema struct {
 	Current   float32 `json:"current"`
 	WithDrawn float32 `json:"withdrawn"`
 }

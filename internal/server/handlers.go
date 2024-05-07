@@ -12,6 +12,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/winkor4/taktaev_project_sp56/internal/model"
 	"github.com/winkor4/taktaev_project_sp56/internal/storage"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func register(s *Server) http.HandlerFunc {
@@ -29,7 +30,13 @@ func register(s *Server) http.HandlerFunc {
 			return
 		}
 
-		conflict, err := s.db.Register(schema.Login, schema.Password)
+		hash, err := hashPassword(schema.Password)
+		if err != nil {
+			http.Error(w, "can't generate hash from password", http.StatusInternalServerError)
+			return
+		}
+
+		conflict, err := s.db.Register(r.Context(), schema.Login, hash)
 		if err != nil {
 			http.Error(w, "can't register", http.StatusInternalServerError)
 			return
@@ -53,6 +60,16 @@ func register(s *Server) http.HandlerFunc {
 	}
 }
 
+func hashPassword(pass string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(pass), 8)
+	return string(bytes), err
+}
+
+func checkPasswordHash(pass, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(pass))
+	return err == nil
+}
+
 func login(s *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -67,13 +84,13 @@ func login(s *Server) http.HandlerFunc {
 			return
 		}
 
-		expPass, err := s.db.GetPass(schema.Login)
+		hash, err := s.db.GetPass(r.Context(), schema.Login)
 		if err != nil {
 			http.Error(w, "can't auth", http.StatusInternalServerError)
 			return
 		}
 
-		if schema.Password != expPass {
+		if !checkPasswordHash(schema.Password, hash) {
 			http.Error(w, "can't auth", http.StatusUnauthorized)
 			return
 		}
@@ -135,7 +152,7 @@ func uploadOrder(s *Server) http.HandlerFunc {
 			return
 		}
 
-		err = s.db.CheckOrder(s.session.user, orderNumber)
+		err = s.db.CheckOrder(r.Context(), s.session.user, orderNumber)
 		if err == nil {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -148,7 +165,7 @@ func uploadOrder(s *Server) http.HandlerFunc {
 			return
 		}
 
-		err = s.db.UploadOrder(s.session.user, orderNumber)
+		err = s.db.UploadOrder(r.Context(), s.session.user, orderNumber)
 		if err != nil {
 			http.Error(w, "can't write order number", http.StatusInternalServerError)
 			return
@@ -232,6 +249,10 @@ func getOrdersAccrual(s *Server, orders []string) error {
 			return err
 		}
 
+		if r.StatusCode == http.StatusTooManyRequests {
+			return nil
+		}
+
 		if r.StatusCode != http.StatusOK {
 			continue
 		}
@@ -248,11 +269,12 @@ func getOrdersAccrual(s *Server, orders []string) error {
 		return nil
 	}
 
-	err := s.db.UpdateOrders(accrualList)
+	ctx := context.Background()
+	err := s.db.UpdateOrders(ctx, accrualList)
 	if err != nil {
 		return err
 	}
-	err = s.db.SetBonuses(context.Background(), accrualList)
+	err = s.db.SetBonuses(ctx, accrualList)
 	if err != nil {
 		return err
 	}

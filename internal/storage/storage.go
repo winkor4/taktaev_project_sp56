@@ -78,29 +78,16 @@ func (db *DB) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (db *DB) Register(login string, pass string) (bool, error) {
+func (db *DB) Register(ctx context.Context, login string, pass string) (bool, error) {
 
-	tx, err := db.db.Begin()
-	if err != nil {
-		return false, err
-	}
-
-	ctx := context.Background()
-	result, err := tx.ExecContext(ctx, queryRegister,
+	result, err := db.db.ExecContext(ctx, queryRegister,
 		login,
 		pass)
 	if err != nil {
-		tx.Rollback()
 		return false, err
 	}
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		tx.Rollback()
-		return false, err
-	}
-
-	if err := tx.Commit(); err != nil {
-		tx.Rollback()
 		return false, err
 	}
 
@@ -134,9 +121,9 @@ func (db *DB) Truncate() error {
 	return nil
 }
 
-func (db *DB) GetPass(login string) (string, error) {
+func (db *DB) GetPass(ctx context.Context, login string) (string, error) {
 
-	row := db.db.QueryRowContext(context.Background(), queryPassword, login)
+	row := db.db.QueryRowContext(ctx, queryPassword, login)
 
 	pass := new(string)
 	err := row.Scan(pass)
@@ -159,9 +146,9 @@ func (db *DB) Authorized(login string) bool {
 	return out
 }
 
-func (db *DB) CheckOrder(login string, number string) error {
+func (db *DB) CheckOrder(ctx context.Context, login string, number string) error {
 
-	row := db.db.QueryRowContext(context.Background(), querySelectOrder, number)
+	row := db.db.QueryRowContext(ctx, querySelectOrder, number)
 
 	var user string
 	err := row.Scan(&user)
@@ -177,27 +164,15 @@ func (db *DB) CheckOrder(login string, number string) error {
 	}
 }
 
-func (db *DB) UploadOrder(login string, number string) error {
+func (db *DB) UploadOrder(ctx context.Context, login string, number string) error {
 
-	tx, err := db.db.Begin()
-	if err != nil {
-		return err
-	}
-
-	ctx := context.Background()
-	_, err = tx.ExecContext(ctx, queryInsertOrder,
+	_, err := db.db.ExecContext(ctx, queryInsertOrder,
 		login,
 		number,
 		time.Now(),
 		"NEW",
 		0)
 	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := tx.Commit(); err != nil {
-		tx.Rollback()
 		return err
 	}
 
@@ -230,8 +205,8 @@ func (db *DB) GetOrders(ctx context.Context, login string) ([]model.OrderSchema,
 	return orders, nil
 }
 
-func (db *DB) OrdersToRefresh() ([]string, error) {
-	rows, err := db.db.QueryContext(context.Background(), queryOrdersToRefresh)
+func (db *DB) OrdersToRefresh(ctx context.Context) ([]string, error) {
+	rows, err := db.db.QueryContext(ctx, queryOrdersToRefresh)
 	if err != nil {
 		return nil, err
 	}
@@ -254,14 +229,13 @@ func (db *DB) OrdersToRefresh() ([]string, error) {
 	return orders, nil
 }
 
-func (db *DB) UpdateOrders(accrualList []model.AccrualSchema) error {
+func (db *DB) UpdateOrders(ctx context.Context, accrualList []model.AccrualSchema) error {
 
 	tx, err := db.db.Begin()
 	if err != nil {
 		return err
 	}
 
-	ctx := context.Background()
 	for _, data := range accrualList {
 		_, err = tx.ExecContext(ctx, queryUpdateOrder,
 			data.Status,
@@ -377,10 +351,10 @@ func insertBonuses(ctx context.Context, tx *sql.Tx, bonuses bonuses) error {
 	return nil
 }
 
-func (db *DB) GetBalance(ctx context.Context, login string) (model.BalaneSchema, error) {
-	row := db.db.QueryRowContext(context.Background(), queryBalance, login)
+func (db *DB) GetBalance(ctx context.Context, login string) (model.BalanсeSchema, error) {
+	row := db.db.QueryRowContext(ctx, queryBalance, login)
 
-	var balance model.BalaneSchema
+	var balance model.BalanсeSchema
 	err := row.Scan(&balance.Current, &balance.WithDrawn)
 	if err != nil {
 		return balance, err

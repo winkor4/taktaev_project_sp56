@@ -501,7 +501,7 @@ func testBalance(t *testing.T, srv *httptest.Server) {
 			err = r.Body.Close()
 			require.NoError(t, err)
 
-			var balance model.BalaneSchema
+			var balance model.BalanсeSchema
 			err = json.Unmarshal(rBody, &balance)
 			require.NoError(t, err)
 
@@ -666,5 +666,4 @@ func testWithdraw(t *testing.T, srv *httptest.Server) {
 
 		})
 	}
-
 }
